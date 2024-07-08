@@ -14,12 +14,12 @@ trigger:
 
 variables:
   buildConfiguration: 'Release'
-  poolName: 'VMAgents' --- this is going through a deployment pool through agent
+  poolName: 'New_test_pool' --- this is going through a deployment pool through agent
   artifactName: 'dacpacdrop'
   databaseName: 'ELTAdministration'
   databaseLoginId: 'ETL_SQL_Admin'  ---might need to change this because this script is for azure dsq db
 
-pool: $(poolName)
+pool: New_test_pool
   
 stages:
 - stage: STAGE_Build
