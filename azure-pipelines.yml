@@ -1,133 +1,61 @@
-# This script and pipeline are designed to run a DACPAC. 
-# It takes your Visual Studio project saved to the repository and updates the development environment.
-# This is for Azure SQL Database, slightly different from serverless. 
-# We can use this as a reference for parameterization.
-
-# Build and test ASP.NET Core projects targeting .NET Core.
-# Add steps that run tests, create a NuGet package, deploy, and more:
-# https://docs.microsoft.com/azure/devops/pipelines/languages/dotnet-core
-
-name: $(Build.SourceBranchName)-$(date:yyyyMMdd)$(rev:.r)
-
-trigger:
-- main
-
 variables:
   buildConfiguration: 'Release'
-  poolName: 'New_test_pool'
+  poolName: 'VMAgents'
   artifactName: 'dacpacdrop'
-  databaseName: 'ELTAdministration'
-  databaseLoginId: 'ETL_SQL_Admin'  # Might need to change this because this script is for Azure SQL DB.
+  databaseNames: 'Bank,Time,AnotherDB'  # List of databases
+  databaseLoginId: 'ETL_SQL_Admin'
 
-pool:
-  name: $(poolName)
-  
+pool: $(poolName)
+
 stages:
 - stage: STAGE_Build
   displayName: 'Build DACPAC'
   jobs:
   - job: JOB_VSBuildSQLProject
-    displayName: 'Build'
+    displayName: 'Build'    
     steps:
     - task: VSBuild@1
-      displayName: 'Build SQL Project to Produce DACPAC'
-      inputs:
-        solution: '$(Build.Repository.LocalPath)\ELTAdministration\ELTAdministration.sln'  # Path to solution file
+      displayName: 'Build SQL Project to Produce Dacpac'
+      inputs:    
+        solution: '$(Build.Repository.LocalPath)\ELTAdministration\ELTAdministration.sln'
         platform: 'Any CPU'
         configuration: $(buildConfiguration)
-
     - task: CopyFiles@2
-      displayName: 'Copy DACPAC to Staging Directory'
+      displayName: 'Copy Dacpac to staging directory'
       inputs:
         SourceFolder: '$(Build.Repository.LocalPath)'
-        Contents: '**/*.dacpac'
+        Contents: '**\*.dacpac'
         TargetFolder: '$(Build.ArtifactStagingDirectory)'
-
     - task: PublishBuildArtifacts@1
-      displayName: 'Publish DACPAC Artifact'
+      displayName: 'Publish Dacpac Artifact'
       inputs:
         PathtoPublish: '$(Build.ArtifactStagingDirectory)'
         ArtifactName: $(artifactName)
         publishLocation: 'Container'
 
 - stage: STAGE_DeployDEV
-  displayName: 'Deploy to Development'
+  displayName: 'DeployDev'
   dependsOn: 'STAGE_Build'
-  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+  condition: and(succeeded(), eq(variables['build.sourceBranch'], 'refs/heads/main'))
   variables:
-  - group: CoreDataDevKV  # Uses the key vault to get keys and passwords.
+  - group: CoreDataDevKV
   jobs: 
-  - deployment: DEPLOY_SqlDev
-    displayName: 'Deploy SQL to Dev'
-    environment: AzureDevSQL
-    strategy: 
-      runOnce:
-        deploy:
-          steps:
-          - task: SqlAzureDacpacDeployment@1
-            inputs:
-              azureSubscription: 'AzureDevDataManagement'
-              AuthenticationType: 'server'
-              ServerName: 'coredatadev.database.usgovcloudapi.net'
-              DatabaseName: $(databaseName)
-              SqlUsername: $(databaseLoginId)
-              SqlPassword: '$(ETL-SQL-Admin-Password)'
-              deployType: 'DacpacTask'
-              DeploymentAction: 'Publish'
-              DacpacFile: '$(Pipeline.Workspace)/$(artifactName)/ELTAdministration/ELTAdministration/bin/Release/ELTAdministration.dacpac'
-              IpDetectionMethod: 'AutoDetect'
-              AdditionalArguments: '/p:BlockOnPossibleDataLoss=true'
-
-- stage: STAGE_DeployTest
-  displayName: 'Deploy to Test'
-  dependsOn: 'STAGE_DeployDEV'
-  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
-  variables:
-  - group: CoreDataTestKV
-  jobs: 
-  - deployment: DEPLOY_SqlTest
-    displayName: 'Deploy SQL to Test'
-    environment: AzureTestSQL
-    strategy: 
-      runOnce:
-        deploy:
-          steps:
-          - task: SqlAzureDacpacDeployment@1
-            inputs:
-              azureSubscription: 'AzureTestDataManagement'
-              AuthenticationType: 'server'
-              ServerName: 'coredatatest.database.usgovcloudapi.net'
-              DatabaseName: $(databaseName)
-              SqlUsername: $(databaseLoginId)
-              SqlPassword: '$(ETL-SQL-Admin-Password)'
-              deployType: 'DacpacTask'
-              DeploymentAction: 'Publish'
-              DacpacFile: '$(Pipeline.Workspace)/$(artifactName)/ELTAdministration/ELTAdministration/bin/Release/ELTAdministration.dacpac'
-              IpDetectionMethod: 'AutoDetect'
-
-- stage: STAGE_DeployProd
-  displayName: 'Deploy to Production'
-  dependsOn: 'STAGE_DeployTest'
-  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
-  variables:
-  - group: CoreDataProdKV
-  jobs: 
-  - deployment: DEPLOY_SqlProd
-    displayName: 'Deploy SQL to Prod'
-    environment: AzureProdSQL
-    strategy: 
-      runOnce:
-        deploy:
-          steps:
-          - task: SqlAzureDacpacDeployment@1
-            inputs:
-              azureSubscription: 'AzureProdDataManagement'
-              AuthenticationType: 'server'
-              ServerName: 'coredataprod.database.usgovcloudapi.net'
-              DatabaseName: $(databaseName)
-              SqlUsername: $(databaseLoginId)
-              SqlPassword: '$(ETL-SQL-Admin-Password)'
-              deployType: 'DacpacTask'
-              DeploymentAction: 'Publish'
-              DacpacFile: '$(Pipeline.Workspace)/$(artifactName)/ELTAdministration/ELTAdministration/bin/Release/ELTAdministration.dacpac'
-              IpDetectionMethod: 'AutoDetect'
+    - deployment: DEPLOY_SqlDev
+      displayName: 'Deploy SQL to Dev'
+      environment: AzureDevSQL
+      strategy: 
+        runOnce:
+          deploy:      
+            steps:
+            - script: |
+                databases=$(databaseNames)
+                for db in ${databases//,/ }
+                do
+                  echo "Deploying to database: $db"
+                  az sql db deploy \
+                    --name $db \
+                    --login $databaseLoginId \
+                    --password $(ETL-SQL-Admin-Password) \
+                    --dacpac $(Pipeline.Workspace)/$(artifactName)/ELTAdministration/ELTAdministration/bin/Release/ELTAdministration.dacpac
+                done
+              displayName: 'Deploy DACPAC to each database'
