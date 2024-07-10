@@ -1,4 +1,5 @@
 variables:
+
   buildConfiguration: 'Release'
   poolName: 'Azure Pipelines'
   artifactName: 'dacpacdrop'
