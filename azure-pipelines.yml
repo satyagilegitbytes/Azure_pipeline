@@ -1,13 +1,9 @@
-trigger:
-- main
-
 variables:
   buildConfiguration: 'Release'
-  poolName: 'New_test_pool'
+  poolName: 'Azure Pipelines'
   artifactName: 'dacpacdrop'
   databaseNames: 'Bank,Time,AnotherDB'  # List of databases
   databaseLoginId: 'ETL_SQL_Admin'
-  databasePassword: 'YourPassword'  # Replace with your actual password
 
 pool: $(poolName)
 
@@ -21,7 +17,7 @@ stages:
     - task: VSBuild@1
       displayName: 'Build SQL Project to Produce Dacpac'
       inputs:    
-        solution: '$(Build.Repository.LocalPath)\MyDatabaseProject\MyDatabaseProject.sln'  # Adjust the path to your solution
+        solution: '$(Build.Repository.LocalPath)\ELTAdministration\ELTAdministration.sln'
         platform: 'Any CPU'
         configuration: $(buildConfiguration)
     - task: CopyFiles@2
@@ -41,6 +37,8 @@ stages:
   displayName: 'DeployDev'
   dependsOn: 'STAGE_Build'
   condition: and(succeeded(), eq(variables['build.sourceBranch'], 'refs/heads/main'))
+  variables:
+  - group: CoreDataDevKV
   jobs: 
     - deployment: DEPLOY_SqlDev
       displayName: 'Deploy SQL to Dev'
@@ -57,7 +55,7 @@ stages:
                   az sql db deploy \
                     --name $db \
                     --login $databaseLoginId \
-                    --password $databasePassword \
-                    --dacpac $(Pipeline.Workspace)/$(artifactName)/MyDatabaseProject/bin/Release/MyDatabaseProject.dacpac  # Adjust the path to your dacpac
+                    --password $(ETL-SQL-Admin-Password) \
+                    --dacpac $(Pipeline.Workspace)/$(artifactName)/ELTAdministration/ELTAdministration/bin/Release/ELTAdministration.dacpac
                 done
               displayName: 'Deploy DACPAC to each database'
