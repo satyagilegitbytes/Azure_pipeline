@@ -1,13 +1,10 @@
 variables:
-
   buildConfiguration: 'Release'
-  poolName: 'azure_new'
+  poolName: 'test_pool'
   artifactName: 'dacpacdrop'
   databaseNames: 'Bank,Time,AnotherDB'  # List of databases
   databaseLoginId: 'ETL_SQL_Admin'
-
-pool: $(poolName)
-
+  
 stages:
 - stage: STAGE_Build
   displayName: 'Build DACPAC'
@@ -18,15 +15,17 @@ stages:
     - task: VSBuild@1
       displayName: 'Build SQL Project to Produce Dacpac'
       inputs:    
-        solution: '$(Build.Repository.LocalPath)\ELTAdministration\ELTAdministration.sln'
+        solution: '$(Build.Repository.LocalPath)/ELTAdministration/ELTAdministration.sln'
         platform: 'Any CPU'
         configuration: $(buildConfiguration)
+
     - task: CopyFiles@2
       displayName: 'Copy Dacpac to staging directory'
       inputs:
         SourceFolder: '$(Build.Repository.LocalPath)'
-        Contents: '**\*.dacpac'
+        Contents: '**/*.dacpac'
         TargetFolder: '$(Build.ArtifactStagingDirectory)'
+
     - task: PublishBuildArtifacts@1
       displayName: 'Publish Dacpac Artifact'
       inputs:
@@ -39,15 +38,28 @@ stages:
   dependsOn: 'STAGE_Build'
   condition: and(succeeded(), eq(variables['build.sourceBranch'], 'refs/heads/main'))
   variables:
-  - group: CoreDataDevKV
+    - group: CoreDataDevKV
   jobs: 
     - deployment: DEPLOY_SqlDev
       displayName: 'Deploy SQL to Dev'
       environment: AzureDevSQL
       strategy: 
         runOnce:
-          deploy:      
+          deploy:
             steps:
+            - task: SqlAzureDacpacDeployment@1
+              inputs:
+                azureSubscription: 'Azure subscription 1(c2baae79-56e2-438d-bd7d-101f52657bad)'
+                AuthenticationType: 'server'
+                ServerName: 'newserver011.database.windows.net'
+                DatabaseName: 'name (newserver011/name)'
+                SqlUsername: 'sarthak'
+                SqlPassword: 'Legitbytes@1234'
+                deployType: 'DacpacTask'
+                DeploymentAction: 'Publish'
+                DacpacFile: '$(Pipeline.Workspace)/$(artifactName)/ELTAdministration/ELTAdministration/bin/Release/ELTAdministration.dacpac'
+                IpDetectionMethod: 'AutoDetect'
+
             - script: |
                 databases=$(databaseNames)
                 for db in ${databases//,/ }
