@@ -1,7 +1,7 @@
 variables:
 
   buildConfiguration: 'Release'
-  poolName: 'Azure Pipelines'
+  poolName: 'azure_new'
   artifactName: 'dacpacdrop'
   databaseNames: 'Bank,Time,AnotherDB'  # List of databases
   databaseLoginId: 'ETL_SQL_Admin'
