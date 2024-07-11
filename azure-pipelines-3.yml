@@ -1,0 +1,64 @@
+variables:
+  buildConfiguration: 'Release'
+  poolName: 'test_pool'
+  artifactName: 'dacpacdrop'
+  databaseNames: 'Bank,Time,AnotherDB'  # List of databases
+  databaseLoginId: 'ETL_SQL_Admin'
+
+pool:
+  name: $(poolName)
+
+stages:
+- stage: STAGE_Build
+  displayName: 'Build DACPAC'
+  jobs:
+  - job: JOB_VSBuildSQLProject
+    displayName: 'Build'
+    steps:
+    - task: VSBuild@1
+      displayName: 'Build SQL Project to Produce Dacpac'
+      inputs:
+        solution: '$(Build.Repository.LocalPath)/ELTAdministration/ELTAdministration.sln'
+        platform: 'Any CPU'
+        configuration: $(buildConfiguration)
+
+    - task: CopyFiles@2
+      displayName: 'Copy Dacpac to staging directory'
+      inputs:
+        SourceFolder: '$(Build.Repository.LocalPath)'
+        Contents: '**/*.dacpac'
+        TargetFolder: '$(Build.ArtifactStagingDirectory)'
+
+    - task: PublishBuildArtifacts@1
+      displayName: 'Publish Dacpac Artifact'
+      inputs:
+        PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+        ArtifactName: $(artifactName)
+        publishLocation: 'Container'
+
+- stage: STAGE_DeployDEV
+  displayName: 'DeployDev'
+  dependsOn: 'STAGE_Build'
+  condition: and(succeeded(), eq(variables['build.sourceBranch'], 'refs/heads/main'))
+  variables:
+    - group: CoreDataDevKV
+  jobs: 
+    - deployment: DEPLOY_SqlDev
+      displayName: 'Deploy SQL to Dev'
+      environment: AzureDevSQL
+      strategy: 
+        runOnce:
+          deploy:      
+            steps:
+            - script: |
+                databases=$(databaseNames)
+                for db in ${databases//,/ }
+                do
+                  echo "Deploying to database: $db"
+                  az sql db deploy \
+                    --name $db \
+                    --login $databaseLoginId \
+                    --password $(ETL-SQL-Admin-Password) \
+                    --dacpac $(Pipeline.Workspace)/$(artifactName)/ELTAdministration/ELTAdministration/bin/Release/ELTAdministration.dacpac
+                done
+              displayName: 'Deploy DACPAC to each database'
