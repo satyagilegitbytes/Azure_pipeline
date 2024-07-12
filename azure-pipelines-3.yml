@@ -38,7 +38,7 @@ stages:
 
 - stage: STAGE_DeployDEV
   displayName: 'DeployDev'
-  dependsOn: 'STAGE_Build'
+  dependsOn: STAGE_Build
   condition: and(succeeded(), eq(variables['build.sourceBranch'], 'refs/heads/main'))
   variables:
     - group: CoreDataDevKV
@@ -59,6 +59,18 @@ stages:
                     --name $db \
                     --login $databaseLoginId \
                     --password $(ETL-SQL-Admin-Password) \
-                    --dacpac $(Pipeline.Workspace)/$(artifactName)/ELTAdministration/ELTAdministration/bin/Release/ELTAdministration.dacpac
+                    --dacpac \
+                    - task: SqlAzureDacpacDeployment@1
+                      inputs:
+                        azureSubscription: 'Azure subscription 1(c2baae79-56e2-438d-bd7d-101f52657bad)'
+                        AuthenticationType: 'server'
+                        ServerName: 'newserver011.database.windows.net'
+                        DatabaseName: '$(db)'
+                        SqlUsername: '$(databaseLoginId)'
+                        SqlPassword: '$(ETL-SQL-Admin-Password)'
+                        deployType: 'DacpacTask'
+                        DeploymentAction: 'Publish'
+                        DacpacFile: '$(Pipeline.Workspace)/$(artifactName)/ELTAdministration/ELTAdministration/bin/Release/'
+                        IpDetectionMethod: 'AutoDetect'
                 done
               displayName: 'Deploy DACPAC to each database'
