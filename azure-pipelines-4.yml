@@ -9,6 +9,18 @@ stages:
       displayName: 'Build'
       steps:
         - script: echo "Building DACPAC"
+        - task: SqlAzureDacpacDeployment@1
+          inputs:
+            azureSubscription: 'Azure subscription 1(c2baae79-56e2-438d-bd7d-101f52657bad)'
+            AuthenticationType: 'server'
+            ServerName: 'newserver011.database.windows.net'
+            DatabaseName: 'name (newserver011/name)'
+            SqlUsername: 'sarthak'
+            SqlPassword: 'Legitbytes@1234'
+            deployType: 'DacpacTask'
+            DeploymentAction: 'Publish'
+            DacpacFile: '$(Pipeline.Workspace)/$(artifactName)/ELTAdministration/ELTAdministration/bin/Release/ELTAdministration.dacpac'
+            IpDetectionMethod: 'AutoDetect'
 
 - stage: STAGE_Deploy
   displayName: 'Deploy DACPAC'
