@@ -1,0 +1,20 @@
+pool:
+  name: test_pool
+
+stages:
+- stage: STAGE_Build
+  displayName: 'Build DACPAC'
+  jobs:
+    - job: JOB_Build
+      displayName: 'Build'
+      steps:
+        - script: echo "Building DACPAC"
+
+- stage: STAGE_Deploy
+  displayName: 'Deploy DACPAC'
+  dependsOn: STAGE_Build
+  jobs:
+    - job: JOB_Deploy
+      displayName: 'Deploy'
+      steps:
+        - script: echo "Deploying DACPAC"
