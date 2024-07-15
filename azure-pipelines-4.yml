@@ -9,18 +9,13 @@ stages:
       displayName: 'Build'
       steps:
         - script: echo "Building DACPAC"
-        - task: SqlAzureDacpacDeployment@1
+        - task: UseDotNet@2
           inputs:
-            azureSubscription: 'Azure subscription 1(c2baae79-56e2-438d-bd7d-101f52657bad)'
-            AuthenticationType: 'server'
-            ServerName: 'newserver011.database.windows.net'
-            DatabaseName: 'name (newserver011/name)'
-            SqlUsername: 'sarthak'
-            SqlPassword: 'Legitbytes@1234'
-            deployType: 'DacpacTask'
-            DeploymentAction: 'Publish'
-            DacpacFile: '$(Pipeline.Workspace)/$(artifactName)/ELTAdministration/ELTAdministration/bin/Release/ELTAdministration.dacpac'
-            IpDetectionMethod: 'AutoDetect'
+            packageType: 'sdk'
+            version: '8.0.303'  # Specify the appropriate version for your project
+            installationPath: $(Agent.ToolsDirectory)/dotnet
+        - script: |
+            dotnet build /p:Configuration=Release /p:OutputPath=$(Pipeline.Workspace)/$(artifactName)/ELTAdministration/ELTAdministration/bin/Release
 
 - stage: STAGE_Deploy
   displayName: 'Deploy DACPAC'
@@ -29,4 +24,11 @@ stages:
     - job: JOB_Deploy
       displayName: 'Deploy'
       steps:
+        - script: echo "Installing SQLPackage"
+        - script: |
+            wget -q https://aka.ms/sqlpackage-linux -O sqlpackage.zip
+            unzip -q sqlpackage.zip -d /usr/local/sqlpackage
+            chmod +x /usr/local/sqlpackage/sqlpackage
         - script: echo "Deploying DACPAC"
+        - script: |
+            /usr/local/sqlpackage/sqlpackage /Action:Publish /SourceFile:$(Pipeline.Workspace)/$(artifactName)/ELTAdministration/ELTAdministration/bin/Release/ELTAdministration.dacpac /TargetServerName:newserver011.database.windows.net /TargetDatabaseName:name /TargetUser:sarthak /TargetPassword:Legitbytes@1234 /p:AllowIncompatiblePlatform=true
